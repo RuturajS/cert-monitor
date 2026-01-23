@@ -1,17 +1,24 @@
-# Slack webhook environment variable name (optional, defaults to SLACK_WEBHOOK_URL)
 slack_webhook_env_name: "SLACK_WEBHOOK_URL"
+
+# Define additional webhook groups mapping tags to environment variables
+webhook_groups:
+  default: "SLACK_WEBHOOK_URL"
+  dev: "SLACK_WEBHOOK_DEV"
+  prod: "SLACK_WEBHOOK_PROD"
 
 sites:
   - name: "Sandbox"
     environment: "Production"
-    hostname: "https://sandbox.brandintelle.com/v7/login"
+    hostname: "https://google.com"
     port: 443
     alert_days: [30, 15, 7, 3, 1]
     notification_interval_hours: 24
+    webhook_group: "prod"
 
   - name: "QA Dev"
     environment: "Dev"
-    hostname: "https://qa-dev.brandintelle.com/v7/login"
+    hostname: "https://hackerone.com"
     port: 443
     alert_days: [30, 15, 7, 3, 1]
     notification_interval_hours: 12
+    webhook_group: "dev"

@@ -60,6 +60,30 @@ def get_slack_webhook(config: dict) -> Optional[str]:
         logger.warning(f"Slack webhook environment variable '{env_name}' not set.")
     return webhook_url
 
+def resolve_webhook(site: dict, config: dict, default_url: Optional[str]) -> Optional[str]:
+    """
+    Determine the best webhook URL for a specific site.
+    Priority:
+    1. Site-specific 'webhook_group' looked up in 'webhook_groups'
+    2. Default webhook URL passed in
+    """
+    group_name = site.get('webhook_group')
+    if group_name and 'webhook_groups' in config:
+        env_var_name = config['webhook_groups'].get(group_name)
+        if env_var_name:
+            if env_var_name.startswith('http'):
+                return env_var_name
+            
+            val = os.environ.get(env_var_name)
+            if val:
+                return val
+            else:
+                logger.warning(f"Webhook group '{group_name}' maps to env var '{env_var_name}' which is not set.")
+        else:
+            logger.warning(f"Webhook group '{group_name}' not found in configuration.")
+            
+    return default_url
+
 def send_slack_notification(webhook_url: str, message: str, color: str = "#36a64f"):
     if not webhook_url:
         return
@@ -180,14 +204,17 @@ def process_site(site: dict, state: dict, webhook_url: str):
 def main():
     config = load_config()
     state = load_state()
-    webhook_url = get_slack_webhook(config)
+    default_webhook_url = get_slack_webhook(config)
     
     if not config.get('sites'):
         logger.warning("No sites configured in sites.yaml")
         return
 
+    # Process each site with its specific webhook
     for site in config['sites']:
-        process_site(site, state, webhook_url)
+        # Determine which webhook to use
+        site_webhook_url = resolve_webhook(site, config, default_webhook_url)
+        process_site(site, state, site_webhook_url)
     
     save_state(state)
     logger.info("SSL Check completed.")
