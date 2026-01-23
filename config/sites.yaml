@@ -1,0 +1,17 @@
+# Slack webhook environment variable name (optional, defaults to SLACK_WEBHOOK_URL)
+slack_webhook_env_name: "SLACK_WEBHOOK_URL"
+
+sites:
+  - name: "Sandbox"
+    environment: "Production"
+    hostname: "https://sandbox.brandintelle.com/v7/login"
+    port: 443
+    alert_days: [30, 15, 7, 3, 1]
+    notification_interval_hours: 24
+
+  - name: "QA Dev"
+    environment: "Dev"
+    hostname: "https://qa-dev.brandintelle.com/v7/login"
+    port: 443
+    alert_days: [30, 15, 7, 3, 1]
+    notification_interval_hours: 12
