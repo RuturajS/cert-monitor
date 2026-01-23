@@ -127,7 +127,7 @@ def process_site(site: dict, state: dict, webhook_url: str):
             if current_expiry > last_expiry:
                 msg = f"✅ *SSL Certificate Renewed*\n" \
                       f"*Site*: {name} ({env})\n" \
-                      f"*Host*: {hostname}:{port}\n" \
+                      f"*Host*: {hostname}\n" \
                       f"*New Expiry*: {current_expiry.strftime('%Y-%m-%d')}\n" \
                       f"*Days remaining*: {remaining_days}"
                 logger.info(f"Renewal detected for {name} ({env})")
@@ -160,7 +160,7 @@ def process_site(site: dict, state: dict, webhook_url: str):
                 emoji = "⚠️" if triggered_threshold > 7 else "🚨"
                 msg = f"{emoji} *SSL Expiry Warning*\n" \
                       f"*Site*: {name} ({env})\n" \
-                      f"*Host*: {hostname}:{port}\n" \
+                      f"*Host*: {hostname}\n" \
                       f"*Days remaining*: *{remaining_days}* (Threshold: {triggered_threshold})\n" \
                       f"*Expiry Date*: {current_expiry.strftime('%Y-%m-%d')}"
                 
@@ -171,7 +171,7 @@ def process_site(site: dict, state: dict, webhook_url: str):
                 site_state['last_notification_sent'] = now.isoformat()
                 
     except Exception as e:
-        error_msg = f"❌ *SSL Check Failed*\n*Site*: {name} ({env})\n*Host*: {hostname}:{port}\n*Error*: `{str(e)}`"
+        error_msg = f"❌ *SSL Check Failed*\n*Site*: {name} ({env})\n*Host*: {hostname}\n*Error*: `{str(e)}`"
         logger.error(f"Error checking {name} ({env}): {e}")
         send_slack_notification(webhook_url, error_msg, color="#e01e5a")
     
