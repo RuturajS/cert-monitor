@@ -1,3 +1,8 @@
+#Author : Ruturaj Sharbidre
+#Date : 2026-01-23
+#Version : 1.0
+#Description : SSL Certificate Monitoring System
+
 import os
 import ssl
 import socket
@@ -7,7 +12,7 @@ import logging
 import requests
 from urllib.parse import urlparse
 from datetime import datetime, timezone
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
 # Constants
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -278,7 +283,9 @@ def process_site(site: dict, state: dict, channels: Dict[str, Any]):
 def main():
     config = load_config()
     state = load_state()
-    default_webhook_url = get_slack_webhook(config)
+    # Resolve default slack webhook
+    slack_env = config.get('slack_webhook_env_name', 'SLACK_WEBHOOK_URL')
+    default_webhook_url = get_env_var(slack_env)
     
     if not config.get('sites'):
         logger.warning("No sites configured in sites.yaml")
