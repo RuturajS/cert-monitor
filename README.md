@@ -68,13 +68,13 @@ Assign each site to a `notification_group`.
 ```yaml
 sites:
   - name: "Public Website"
-    hostname: "https://brandintelle.com"
+    hostname: "https://google.com"
     port: 443
     alert_days: [30, 14, 7, 3, 1]
     notification_group: "default"
 
   - name: "Internal QA"
-    hostname: "https://qa.brandintelle.com"
+    hostname: "https://bing.com"
     notification_interval_hours: 12
     notification_group: "dev_team"
 ```
