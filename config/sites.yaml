@@ -1,10 +1,17 @@
-slack_webhook_env_name: "SLACK_WEBHOOK_URL"
-
-# Define additional webhook groups mapping tags to environment variables
-webhook_groups:
-  default: "SLACK_WEBHOOK_URL"
-  dev: "SLACK_WEBHOOK_DEV"
-  prod: "SLACK_WEBHOOK_PROD"
+# Notification Groups Configuration
+# Map logical group names to environment variable names for different services.
+notification_groups:
+  default:
+    slack_webhook_url: "SLACK_WEBHOOK_URL"
+    discord_webhook_url: "DISCORD_WEBHOOK_URL"
+    telegram_bot_token: "TELEGRAM_BOT_TOKEN"
+    telegram_chat_id: "TELEGRAM_CHAT_ID"
+  
+  dev:
+    slack_webhook_url: "SLACK_WEBHOOK_DEV"
+  
+  prod:
+    slack_webhook_url: "SLACK_WEBHOOK_PROD"
 
 sites:
   - name: "Sandbox"
@@ -13,7 +20,7 @@ sites:
     port: 443
     alert_days: [30, 15, 7, 3, 1]
     notification_interval_hours: 24
-    webhook_group: "prod"
+    notification_group: "prod"
 
   - name: "QA Dev"
     environment: "Dev"
@@ -21,4 +28,4 @@ sites:
     port: 443
     alert_days: [30, 15, 7, 3, 1]
     notification_interval_hours: 12
-    webhook_group: "dev"
+    notification_group: "dev"

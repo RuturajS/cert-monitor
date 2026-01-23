@@ -48,41 +48,46 @@ def save_state(state: dict):
     with open(STATE_PATH, 'w') as f:
         json.dump(state, f, indent=2)
 
-def get_slack_webhook(config: dict) -> Optional[str]:
-    env_name = config.get('slack_webhook_env_name', 'SLACK_WEBHOOK_URL')
-    
-    # Check if the user accidentally put the URL directly in the config
-    if env_name and env_name.startswith('http'):
-        return env_name
-        
-    webhook_url = os.environ.get(env_name)
-    if not webhook_url:
-        logger.warning(f"Slack webhook environment variable '{env_name}' not set.")
-    return webhook_url
+def get_env_var(config_val: str) -> Optional[str]:
+    """Helper to get env var value whether it's the value itself (url) or a key."""
+    if not config_val:
+        return None
+    if config_val.startswith('http') or config_val.startswith('https'):
+        return config_val
+    return os.environ.get(config_val)
 
-def resolve_webhook(site: dict, config: dict, default_url: Optional[str]) -> Optional[str]:
+def resolve_notifications(site: dict, config: dict, default_slack_url: Optional[str]) -> Dict[str, Any]:
     """
-    Determine the best webhook URL for a specific site.
-    Priority:
-    1. Site-specific 'webhook_group' looked up in 'webhook_groups'
-    2. Default webhook URL passed in
+    Resolve all notification channels for a site.
+    Returns a dict with keys: slack, discord, telegram_token, telegram_chat_id
     """
-    group_name = site.get('webhook_group')
-    if group_name and 'webhook_groups' in config:
-        env_var_name = config['webhook_groups'].get(group_name)
-        if env_var_name:
-            if env_var_name.startswith('http'):
-                return env_var_name
+    channels = {
+        'slack': default_slack_url,
+        'discord': None,
+        'telegram_token': None,
+        'telegram_chat_id': None
+    }
+    
+    group_name = site.get('notification_group')
+    if group_name and 'notification_groups' in config:
+        group_config = config['notification_groups'].get(group_name)
+        if group_config:
+            # Slack
+            if 'slack_webhook_url' in group_config:
+                channels['slack'] = get_env_var(group_config['slack_webhook_url'])
             
-            val = os.environ.get(env_var_name)
-            if val:
-                return val
-            else:
-                logger.warning(f"Webhook group '{group_name}' maps to env var '{env_var_name}' which is not set.")
+            # Discord
+            if 'discord_webhook_url' in group_config:
+                channels['discord'] = get_env_var(group_config['discord_webhook_url'])
+                
+            # Telegram
+            if 'telegram_bot_token' in group_config and 'telegram_chat_id' in group_config:
+                channels['telegram_token'] = get_env_var(group_config['telegram_bot_token'])
+                channels['telegram_chat_id'] = get_env_var(group_config['telegram_chat_id'])
         else:
-            logger.warning(f"Webhook group '{group_name}' not found in configuration.")
+            logger.warning(f"Notification group '{group_name}' defined in site but not found in notification_groups configs.")
             
-    return default_url
+    return channels
 
 def send_slack_notification(webhook_url: str, message: str, color: str = "#36a64f"):
     if not webhook_url:
@@ -104,6 +109,70 @@ def send_slack_notification(webhook_url: str, message: str, color: str = "#36a64
     except Exception as e:
         logger.error(f"Failed to send Slack notification: {e}")
 
+def send_discord_notification(webhook_url: str, message: str, color: int = 3066993):
+    """
+    Send notification to Discord. Color is integer (green=3066993, red=15158332, orange=15105570).
+    """
+    if not webhook_url:
+        return
+
+    # Convert distinct slack markdown like *bold* to discord **bold** if needed, 
+    # but for now sending simple text.
+    payload = {
+        "embeds": [
+            {
+                "description": message,
+                "color": color,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        ]
+    }
+    
+    try:
+        response = requests.post(webhook_url, json=payload, timeout=10)
+        response.raise_for_status()
+    except Exception as e:
+        logger.error(f"Failed to send Discord notification: {e}")
+
+def send_telegram_notification(bot_token: str, chat_id: str, message: str):
+    if not bot_token or not chat_id:
+        return
+        
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+    
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        response.raise_for_status()
+    except Exception as e:
+        logger.error(f"Failed to send Telegram notification: {e}")
+
+def send_notifications(channels: Dict[str, Any], message: str, level: str = "info"):
+    """
+    Central function to dispatch notifications to all configured channels.
+    level: info (green), warning (orange), error/alert (red)
+    """
+    # Color mapping
+    slack_colors = {"info": "#2eb886", "warning": "#daa038", "error": "#e01e5a"}
+    discord_colors = {"info": 3061894, "warning": 16766720, "error": 15158332} # Green, Gold, Red
+    
+    # Send Slack
+    if channels.get('slack'):
+        send_slack_notification(channels['slack'], message, slack_colors.get(level, "#36a64f"))
+        
+    # Send Discord
+    if channels.get('discord'):
+        send_discord_notification(channels['discord'], message, discord_colors.get(level, 3061894))
+        
+    # Send Telegram
+    if channels.get('telegram_token') and channels.get('telegram_chat_id'):
+        # Telegram doesn't support colors directly, just text
+        send_telegram_notification(channels['telegram_token'], channels['telegram_chat_id'], message)
+
 def get_ssl_expiry(hostname: str, port: int) -> datetime:
     context = ssl.create_default_context()
     with socket.create_connection((hostname, port), timeout=10) as sock:
@@ -114,7 +183,7 @@ def get_ssl_expiry(hostname: str, port: int) -> datetime:
             expiry_date = datetime.strptime(expiry_str, '%b %d %H:%M:%S %Y %Z')
             return expiry_date.replace(tzinfo=timezone.utc)
 
-def process_site(site: dict, state: dict, webhook_url: str):
+def process_site(site: dict, state: dict, channels: Dict[str, Any]):
     name = site['name']
     env = site.get('environment', 'N/A')
     original_hostname = site['hostname']
@@ -155,7 +224,9 @@ def process_site(site: dict, state: dict, webhook_url: str):
                       f"*New Expiry*: {current_expiry.strftime('%Y-%m-%d')}\n" \
                       f"*Days remaining*: {remaining_days}"
                 logger.info(f"Renewal detected for {name} ({env})")
-                send_slack_notification(webhook_url, msg, color="#2eb886")
+                
+                send_notifications(channels, msg, level="info")
+                
                 # Reset state for new certificate
                 site_state['notified_thresholds'] = []
         
@@ -182,6 +253,8 @@ def process_site(site: dict, state: dict, webhook_url: str):
             
             if should_send:
                 emoji = "⚠️" if triggered_threshold > 7 else "🚨"
+                level = "warning" if triggered_threshold > 7 else "error"
+                
                 msg = f"{emoji} *SSL Expiry Warning*\n" \
                       f"*Site*: {name} ({env})\n" \
                       f"*Host*: {hostname}\n" \
@@ -189,7 +262,8 @@ def process_site(site: dict, state: dict, webhook_url: str):
                       f"*Expiry Date*: {current_expiry.strftime('%Y-%m-%d')}"
                 
                 logger.info(f"Sending alert for {name} ({env}) - {remaining_days} days left.")
-                send_slack_notification(webhook_url, msg, color="#daa038" if triggered_threshold > 7 else "#e01e5a")
+                
+                send_notifications(channels, msg, level=level)
                 
                 site_state['notified_thresholds'].append(triggered_threshold)
                 site_state['last_notification_sent'] = now.isoformat()
@@ -197,7 +271,7 @@ def process_site(site: dict, state: dict, webhook_url: str):
     except Exception as e:
         error_msg = f"❌ *SSL Check Failed*\n*Site*: {name} ({env})\n*Host*: {hostname}\n*Error*: `{str(e)}`"
         logger.error(f"Error checking {name} ({env}): {e}")
-        send_slack_notification(webhook_url, error_msg, color="#e01e5a")
+        send_notifications(channels, error_msg, level="error")
     
     state[site_key] = site_state
 
@@ -212,9 +286,9 @@ def main():
 
     # Process each site with its specific webhook
     for site in config['sites']:
-        # Determine which webhook to use
-        site_webhook_url = resolve_webhook(site, config, default_webhook_url)
-        process_site(site, state, site_webhook_url)
+        # Determine which webhook channels to use
+        site_channels = resolve_notifications(site, config, default_webhook_url)
+        process_site(site, state, site_channels)
     
     save_state(state)
     logger.info("SSL Check completed.")
