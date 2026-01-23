@@ -280,7 +280,35 @@ def process_site(site: dict, state: dict, channels: Dict[str, Any]):
     
     state[site_key] = site_state
 
+import time
+import argparse
+
 def main():
+    parser = argparse.ArgumentParser(description="SSL Certificate Monitor")
+    parser.add_argument('--daemon', action='store_true', help="Run in daemon mode (continuous monitoring)")
+    parser.add_argument('--interval', type=int, default=86400, help="Interval in seconds for daemon mode (default: 86400s / 24h)")
+    args = parser.parse_args()
+
+    logger.info("Starting SSL Monitor...")
+    
+    if args.daemon:
+        logger.info(f"Running in DAEMON mode. Check interval: {args.interval} seconds.")
+        while True:
+            try:
+                run_check()
+            except Exception as e:
+                logger.error(f"Unexpected error in daemon loop: {e}")
+            
+            # Sleep for the defined interval
+            time.sleep(args.interval)
+    else:
+        # Run once and exit
+        run_check()
+
+def run_check():
+    """
+    Performs a single execution of the SSL check logic.
+    """
     config = load_config()
     state = load_state()
     # Resolve default slack webhook
@@ -298,7 +326,7 @@ def main():
         process_site(site, state, site_channels)
     
     save_state(state)
-    logger.info("SSL Check completed.")
+    logger.info("SSL Check cycle completed.")
 
 if __name__ == "__main__":
     main()
