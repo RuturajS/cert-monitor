@@ -120,7 +120,7 @@ docker pull ruturajs/cert-monitor:latest
 Run it immediately (Windows PowerShell example):
 ```powershell
 docker run -d `
-  --name ssl-monitor `
+  --name cert-monitor `
   -v ${PWD}/config:/app/config `
   -v ${PWD}/state:/app/state `
   -v ${PWD}/logs:/app/logs `
@@ -132,7 +132,7 @@ docker run -d `
 By default, the container checks every 24 hours. To check every 1 hour (3600s), override the command:
 ```powershell
 docker run -d `
-  --name ssl-monitor `
+  --name cert-monitor `
   -v ${PWD}/config:/app/config `
   -v ${PWD}/state:/app/state `
   -v ${PWD}/logs:/app/logs `
@@ -146,7 +146,7 @@ You must mount the `config`, `state`, and `logs` directories so that your config
 **Linux/Mac:**
 ```bash
 docker run -d \
-  --name ssl-monitor \
+  --name cert-monitor \
   -v $(pwd)/config:/app/config \
   -v $(pwd)/state:/app/state \
   -v $(pwd)/logs:/app/logs \
@@ -157,7 +157,7 @@ docker run -d \
 **Windows (PowerShell):**
 ```powershell
 docker run -d `
-  --name ssl-monitor `
+  --name cert-monitor `
   -v ${PWD}/config:/app/config `
   -v ${PWD}/state:/app/state `
   -v ${PWD}/logs:/app/logs `
